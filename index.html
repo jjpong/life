@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>羽球與桌球賽事戰績</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: 一欄式記分板。最上方切換運動，其下三層篩選（年份 → 賽事 → 項目），再下是依輪次分組的戰績；點選手名切換成該選手視圖。 */
+:root{
+  --bg:#F2F5F1; --surface:#FFFFFF; --surface2:#E8EEE8; --fg:#14211B; --muted:#5B6B62; --line:#D3DCD3;
+  --accent:#1B6B4F; --accent-fg:#FFFFFF; --live:#D8342A; --live-bg:#FBE6E3;
+  --tpe:#1F54C4; --tpe-bg:#E3EBFB; --lose:#7C8A82; --ok:#1B6B4F;
+  --font-body:"Noto Sans TC",system-ui,-apple-system,"PingFang TC","Microsoft JhengHei",sans-serif;
+  --font-num:"Barlow Semi Condensed","Noto Sans TC",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0D1512; --surface:#15201B; --surface2:#1D2B24; --fg:#E7EFE9; --muted:#93A59A; --line:#2A3A32;
+    --accent:#4CC59B; --accent-fg:#08150F; --live:#FF6A5E; --live-bg:#3A1A17;
+    --tpe:#8FB0FF; --tpe-bg:#1B2A4D; --lose:#7D9086; --ok:#4CC59B; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0D1512; --surface:#15201B; --surface2:#1D2B24; --fg:#E7EFE9; --muted:#93A59A; --line:#2A3A32;
+  --accent:#4CC59B; --accent-fg:#08150F; --live:#FF6A5E; --live-bg:#3A1A17;
+  --tpe:#8FB0FF; --tpe-bg:#1B2A4D; --lose:#7D9086; --ok:#4CC59B; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:15px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 56px}
+.wrap{max-width:1200px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{margin:0;font-size:1.5rem;line-height:1.2;letter-spacing:.02em;text-wrap:balance}
+.sub{color:var(--muted);font-size:.85rem;margin-top:4px}
+.sync{font-family:var(--font-num);font-size:.85rem;color:var(--muted);display:flex;align-items:center;gap:6px;min-width:0}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.sync.on .dot{background:var(--live);animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.sync.on .dot,.badge.live::before{animation:none}}
+
+.sports{display:flex;gap:0;border:1px solid var(--line);border-radius:8px;overflow:hidden;align-self:flex-start;background:var(--surface)}
+.sport{height:40px;padding:0 22px;border:0;background:transparent;font-weight:500}
+.sport+.sport{border-left:1px solid var(--line)}
+.sport[aria-selected="true"]{background:var(--fg);color:var(--bg);font-weight:700}
+
+.controls{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:end}
+@media (max-width:520px){.controls{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:.72rem;letter-spacing:.08em;color:var(--muted)}
+select,.search input{width:100%;min-width:0;height:42px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface);appearance:auto}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{height:38px;padding:0 14px;border:1px solid var(--line);border-radius:6px;background:var(--surface);display:inline-flex;align-items:center;gap:6px}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg);font-weight:700}
+.tab .n{font-family:var(--font-num);font-size:.8rem;opacity:.75}
+
+.tpe-row{display:flex;flex-direction:column;gap:8px}
+.tpe-row .head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.tpe-row h2,.sec h2{margin:0;font-size:.78rem;letter-spacing:.1em;color:var(--muted);font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--tpe);background:var(--tpe-bg);color:var(--tpe);border-radius:999px;padding:3px 12px;font-size:.85rem}
+.chip:hover{filter:brightness(.96)}
+.search{width:min(100%,260px)}
+.search input{height:36px;font-size:.88rem}
+
+.sec{display:flex;flex-direction:column;gap:8px}
+.sec h2{display:flex;align-items:center;gap:8px}
+.sec h2 .rule{flex:1;height:1px;background:var(--line)}
+.sec h2 .cnt{font-family:var(--font-num)}
+
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;align-items:start}
+@media (max-width:1000px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.grid{grid-template-columns:minmax(0,1fr)}}
+.grid .m{height:100%;padding:8px 10px}
+.grid .names{font-size:.9rem}
+.grid .s{min-width:26px;font-size:.95rem;padding:1px 3px}
+.grid .s.g{min-width:30px;font-size:1.05rem}
+.m{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.m.live{border-color:var(--live)}
+.mm{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;font-size:.76rem;color:var(--muted)}
+.mm .res{margin-left:auto}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0}
+.who{display:flex;align-items:center;gap:8px;min-width:0;flex-wrap:wrap}
+.flag{width:18px;height:18px;border-radius:50%;flex:none;object-fit:cover;background:var(--surface2)}
+.org{font-family:var(--font-num);font-size:.72rem;letter-spacing:.04em;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:0 4px;flex:none}
+.names{min-width:0;display:flex;flex-wrap:wrap;gap:0 6px}
+.pl{background:none;border:0;padding:0;text-align:left;color:inherit;border-bottom:1px dotted var(--muted)}
+.pl:hover{color:var(--accent);border-bottom-color:var(--accent)}
+.pl.tpe{color:var(--tpe);font-weight:500}
+.pl small{font-size:.74rem;color:var(--muted);font-weight:400}
+.seed{font-size:.72rem;color:var(--muted)}
+.row.lose .who{color:var(--lose)}
+.row.win .names{font-weight:700}
+.sets{display:flex;gap:4px;flex:none;font-family:var(--font-num);font-variant-numeric:tabular-nums}
+.s{min-width:30px;text-align:center;padding:1px 4px;border-radius:4px;background:var(--surface2);font-size:1rem;color:var(--lose)}
+.s.sw{color:var(--fg);font-weight:700}
+.s.g{min-width:36px;font-size:1.15rem}
+.s.cur{outline:1.5px solid var(--live);color:var(--live);font-weight:700;background:var(--live-bg)}
+.detail{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.82rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:0 12px}
+.badge{font-size:.7rem;letter-spacing:.06em;padding:1px 7px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.badge.live{border-color:var(--live);color:var(--live);background:var(--live-bg);font-weight:700;display:inline-flex;align-items:center;gap:5px}
+.badge.live::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--live);animation:pulse 1.2s ease-in-out infinite}
+.res{font-size:.74rem;font-weight:700;padding:1px 9px;border-radius:4px}
+.res.w{background:var(--ok);color:var(--accent-fg)}
+.res.l{background:var(--surface2);color:var(--lose)}
+
+.player-head{background:var(--surface);border:1px solid var(--tpe);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:8px}
+.player-head h2{all:unset;font-size:1.3rem;font-weight:700;color:var(--tpe)}
+.player-head .en{font-size:.85rem;color:var(--muted)}
+.rec{font-family:var(--font-num);font-size:1rem}
+.back{align-self:flex-start;height:34px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.state{padding:28px 12px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:6px}
+.state button{margin-top:10px;height:36px;padding:0 14px;border-radius:6px;border:1px solid var(--accent);background:var(--accent);color:var(--accent-fg)}
+.tinfo{font-size:.85rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 12px}
+footer{font-size:.76rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>羽球與桌球賽事戰績</h1>
+      <div class="sub" id="subtitle"></div>
+    </div>
+    <div class="sync" id="sync" aria-live="polite"><span class="dot"></span><span id="syncText">載入中</span></div>
+  </header>
+
+  <div class="sports" id="sports" role="tablist" aria-label="運動">
+    <button class="sport" role="tab" data-sport="bwf">羽球</button>
+    <button class="sport" role="tab" data-sport="tt">桌球</button>
+  </div>
+
+  <section class="controls" aria-label="篩選">
+    <div class="field"><label for="year">年份</label><select id="year"></select></div>
+    <div class="field"><label for="tmt">賽事</label><select id="tmt"></select></div>
+  </section>
+  <div class="tinfo" id="tinfo"></div>
+  <div class="tabs" id="events" role="tablist" aria-label="項目"></div>
+
+  <div id="tpe"></div>
+  <main id="main" class="wrap" style="gap:18px"></main>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+"use strict";
+/* ============ 共用設定 ============ */
+const THIS_YEAR = new Date().getFullYear();
+const EVENTS = [["MS","男單"],["WS","女單"],["MD","男雙"],["WD","女雙"],["XD","混雙"]];
+const EV_ZH = Object.fromEntries(EVENTS);
+const ROUNDS = {Final:[0,"決賽"],SF:[1,"四強"],QF:[2,"八強"],R16:[3,"16 強"],R32:[4,"32 強"],R64:[5,"64 強"],R128:[6,"128 強"]};
+const SPORT_CFG = {
+  bwf:{ label:"羽球", minYear:2018, pollMs:20000,
+        sub:"BWF World Tour Super 300 / 500 / 750 / 1000 與總決賽",
+        foot:"資料來源：BWF Match Centre。時間為比賽場地當地時間。進行中的賽事每 20 秒自動更新。中文姓名以台灣慣用譯名顯示（目前收錄台灣、中國、日本、韓國、香港、新加坡、馬來西亞的主要選手），未收錄者顯示英文名。" },
+  tt: { label:"桌球", minYear:2022, pollMs:60000,
+        sub:"WTT 大滿貫、冠軍賽、總決賽、星級挑戰賽、挑戰賽與世界盃",
+        foot:"資料來源：WTT 官方賽果封存檔。賽事結束後才有賽果，進行中的賽事無法在這裡顯示即時比分。桌球比分為各局獲勝數，括號外為每局分數。ITTF／ATTU 的亞洲錦標賽目前尚未收錄。" }
+};
+
+/* ============ 名稱對照 ============ */
+const TMT_ZH = [
+  [/World Tour Finals/i,"世界巡迴賽總決賽"],[/All England/i,"全英公開賽"],[/Malaysia Open/i,"馬來西亞公開賽"],
+  [/India Open/i,"印度公開賽"],[/Indonesia Masters/i,"印尼大師賽"],[/Indonesia Open/i,"印尼公開賽"],
+  [/Thailand Masters/i,"泰國大師賽"],[/Thailand Open/i,"泰國公開賽"],[/German Open/i,"德國公開賽"],
+  [/Swiss Open/i,"瑞士公開賽"],[/Orleans|Orléans/i,"奧爾良大師賽"],[/Malaysia Masters/i,"馬來西亞大師賽"],
+  [/Singapore Open/i,"新加坡公開賽"],[/Australian Open/i,"澳洲公開賽"],[/Macau Open/i,"澳門公開賽"],
+  [/US Open/i,"美國公開賽"],[/Canada Open/i,"加拿大公開賽"],[/Japan Open/i,"日本公開賽"],
+  [/Japan Masters/i,"日本大師賽"],[/China Open/i,"中國公開賽"],[/China Masters/i,"中國大師賽"],
+  [/Taipei Open/i,"台北公開賽"],[/Arctic Open/i,"北極公開賽"],[/Denmark Open/i,"丹麥公開賽"],
+  [/French Open/i,"法國公開賽"],[/Hylo Open/i,"薩爾公開賽 Hylo Open"],[/Korea Open/i,"韓國公開賽"],
+  [/Korea Masters/i,"韓國大師賽"],[/Hong Kong Open/i,"香港公開賽"],[/New Zealand Open/i,"紐西蘭公開賽"],
+  [/Spain Masters/i,"西班牙大師賽"],[/Vietnam Open/i,"越南公開賽"],[/Hylo/i,"薩爾公開賽"]
+];
+const TT_CITY_ZH = {
+  "Doha":"多哈","Chongqing":"重慶","Macao":"澳門","Macau":"澳門","Yokohama":"橫濱","Montpellier":"蒙彼利埃",
+  "Frankfurt":"法蘭克福","Muscat":"馬斯喀特","Chennai":"清奈","Tunis":"突尼斯","Taiyuan":"太原","Lagos":"拉哥斯",
+  "Zagreb":"札格雷布","Ljubljana":"盧比安那","Almaty":"阿拉木圖","Astana":"阿斯塔納","Istanbul":"伊斯坦堡",
+  "Hong Kong":"香港","Singapore":"新加坡","Beijing":"北京","Bangkok":"曼谷","Incheon":"仁川","Fukuoka":"福岡",
+  "Xinxiang":"新鄉","Amman":"安曼","Skopje":"斯科普里","Budapest":"布達佩斯","Dusseldorf":"杜塞道夫","Düsseldorf":"杜塞道夫"
+};
+/* 選手中文名（台灣慣用繁體譯名）。格式：國家碼|英文名（順序、空格、連字號皆不拘）= 中文名。
+   未收錄的選手顯示英文名。 */
+const ZH_RAW = `
+TPE|CHOU Tien Chen=周天成
+TPE|LEE Yang=李洋
+TPE|WANG Chi Lin=王齊麟
+TPE|LU Ching Yao=盧敬堯
+TPE|YANG Po Han=楊博涵
+TPE|YANG Po Hsuan=楊博軒
+TPE|LEE Jhe Huei=李哲輝
+TPE|CHIU Hsiang Chieh=邱相榤
+TPE|LEE Chia Hao=李佳豪
+TPE|LIN Chun Yi=林俊易
+TPE|CHI Yu Jen=戚又仁
+TPE|SU Li Yang=蘇力揚
+TPE|WANG Tzu Wei=王子維
+TPE|TAI Tzu Ying=戴資穎
+TPE|LEE Chia Hsin=李佳馨
+TPE|HSIEH Pei Shan=謝沛珊
+TPE|HU Ling Fang=胡綾芳
+TPE|LIN Hsiang Ti=林湘緹
+TPE|SUNG Shuo Yun=宋碩芸
+TPE|HSU Ya Ching=許雅晴
+TPE|CHIU Pin Chian=邱品蒨
+TPE|WU Guan Xun=吳冠勳
+TPE|YE Hong Wei=葉宏蔚
+TPE|Nicole Gonzales CHAN=詹又蓁
+TPE|LEE Fang Jen=李芳任
+TPE|LEE Fang Chih=李芳至
+TPE|HSU Yin Hui=許尹鏸
+TPE|LIN Jhih Yun=林芝昀
+TPE|SUNG Yu Hsuan=宋祐媗
+TPE|LIU Kuang Heng=劉廣珩
+TPE|CHEN Zhi Ray=陳子睿
+TPE|LIN Yu Chieh=林煜傑
+TPE|WU Hsuan Yi=吳軒毅
+TPE|YANG Chu Yun=楊筑云
+TPE|HUANG Yu Hsun=黃宥薰
+TPE|CHANG Ching Hui=張淨惠
+TPE|YANG Ching Tun=楊景惇
+TPE|LIN Chih Chun=林芷均
+TPE|LIN Yun Ju=林昀儒
+TPE|CHENG I Ching=鄭怡靜
+TPE|CHEN Szu Yu=陳思羽
+TPE|KUO Guan Hong=郭冠宏
+TPE|CHEN Chien An=陳建安
+TPE|HUANG Yan Cheng=黃彥誠
+TPE|LI Yu Jhun=李昱諄
+TPE|HUANG Yi Hua=黃怡樺
+TPE|CHIEN Tung Chuan=簡彤娟
+TPE|CHUANG Chih Yuan=莊智淵
+CHN|SHI Yu Qi=石宇奇
+CHN|LI Shi Feng=李詩灃
+CHN|LU Guang Zu=陸光祖
+CHN|WENG Hong Yang=翁泓陽
+CHN|CHEN Yu Fei=陳雨菲
+CHN|HE Bing Jiao=何冰嬌
+CHN|WANG Zhi Yi=王祉怡
+CHN|HAN Yue=韓悅
+CHN|ZHANG Yi Man=張藝曼
+CHN|LIANG Wei Keng=梁偉鏗
+CHN|WANG Chang=王昶
+CHN|LIU Yu Chen=劉雨辰
+CHN|OU Xuan Yi=歐烜屹
+CHN|CHEN Bo Yang=陳柏陽
+CHN|ZHENG Si Wei=鄭思維
+CHN|HUANG Ya Qiong=黃雅瓊
+CHN|JIANG Zhen Bang=蔣振邦
+CHN|WEI Ya Xin=魏雅欣
+CHN|FENG Yan Zhe=馮彥哲
+CHN|HUANG Dong Ping=黃東萍
+CHN|JIA Yi Fan=賈一凡
+CHN|ZHANG Shu Xian=張殊賢
+CHN|LIU Sheng Shu=劉聖書
+CHN|TAN Ning=譚寧
+CHN|LI Yi Jing=李懿靜
+CHN|LUO Xu Min=羅旭敏
+CHN|CHEN Qing Chen=陳清晨
+CHN|XIE Hao Nan=謝浩南
+CHN|HE Ji Ting=何濟霆
+CHN|ZHOU Hao Dong=周昊東
+CHN|FAN Zhendong=樊振東
+CHN|MA Long=馬龍
+CHN|WANG Chuqin=王楚欽
+CHN|LIN Gaoyuan=林高遠
+CHN|LIANG Jingkun=梁靖崑
+CHN|XU Xin=許昕
+CHN|ZHOU Qihao=周啟豪
+CHN|LIN Shidong=林詩棟
+CHN|SUN Yingsha=孫穎莎
+CHN|CHEN Meng=陳夢
+CHN|WANG Manyu=王曼昱
+CHN|WANG Yidi=王藝迪
+CHN|KUAI Man=蒯曼
+CHN|CHEN Xingtong=陳幸同
+CHN|ZHU Yuling=朱雨玲
+CHN|LIU Shiwen=劉詩雯
+CHN|DING Ning=丁寧
+CHN|QIAN Tianyi=錢天一
+CHN|SHI Xunyao=石洵瑤
+CHN|ZHANG Jike=張繼科
+CHN|CHEN Yuanyu=陳垣宇
+CHN|HUANG Youzheng=黃友政
+JPN|Kento MOMOTA=桃田賢斗
+JPN|Kodai NARAOKA=奈良岡功大
+JPN|Kenta NISHIMOTO=西本拳太
+JPN|Koki WATANABE=渡邊航貴
+JPN|Yushi TANAKA=田中湧士
+JPN|Kanta TSUNEYAMA=常山幹太
+JPN|Akane YAMAGUCHI=山口茜
+JPN|Nozomi OKUHARA=奧原希望
+JPN|Aya OHORI=大堀彩
+JPN|Tomoka MIYAZAKI=宮崎友花
+JPN|Takuro HOKI=保木卓朗
+JPN|Yugo KOBAYASHI=小林優吾
+JPN|Kenya MITSUHASHI=三橋健也
+JPN|Hiroki OKAMURA=岡村洋輝
+JPN|Yuta WATANABE=渡邊勇大
+JPN|Arisa HIGASHINO=東野有紗
+JPN|Nami MATSUYAMA=松山奈未
+JPN|Chiharu SHIDA=志田千陽
+JPN|Rin IWANAGA=岩永鈴
+JPN|Kie NAKANISHI=中西貴映
+JPN|Mayu MATSUMOTO=松本麻佑
+JPN|Wakana NAGAHARA=永原和可那
+JPN|Yuki FUKUSHIMA=福島由紀
+JPN|Sayaka HIROTA=廣田彩花
+JPN|Misaki MATSUTOMO=松友美佐紀
+JPN|Sayaka TAKAHASHI=高橋沙也加
+JPN|Rena MIYAURA=宮浦玲奈
+JPN|Ayako SAKURAMOTO=櫻本綾子
+JPN|HARIMOTO Tomokazu=張本智和
+JPN|HARIMOTO Miwa=張本美和
+JPN|ITO Mima=伊藤美誠
+JPN|HAYATA Hina=早田希娜
+JPN|ISHIKAWA Kasumi=石川佳純
+JPN|HIRANO Miu=平野美宇
+JPN|UDA Yukiya=宇田幸矢
+JPN|MATSUSHIMA Sora=松島輝空
+JPN|TOGAMI Shunsuke=戶上隼輔
+JPN|NIWA Koki=丹羽孝希
+JPN|KIHARA Miyuu=木原美悠
+JPN|NAGASAKI Miyu=長崎美柚
+JPN|SHINOZUKA Hiroto=篠塚大登
+JPN|SATO Hitomi=佐藤瞳
+JPN|MORIZONO Misaki=森薗美咲
+KOR|AN Se Young=安洗瑩
+KOR|KIM Ga Eun=金佳恩
+KOR|SIM Yu Jin=沈有振
+KOR|JEON Hyeok Jin=全奕陳
+KOR|KANG Min Hyuk=姜珉赫
+KOR|SEO Seung Jae=徐承宰
+KOR|KIM Won Ho=金元浩
+KOR|KONG Hee Yong=孔熙容
+KOR|LEE So Hee=李紹希
+KOR|BAEK Ha Na=白荷娜
+KOR|KIM So Yeong=金昭映
+KOR|KIM Hye Jeong=金慧貞
+KOR|JEONG Na Eun=鄭那銀
+KOR|LIM Jonghoon=林鐘勳
+KOR|JANG Woojin=張禹珍
+KOR|AHN Jaehyun=安宰賢
+KOR|CHO Daeseong=曹大成
+KOR|SHIN Yubin=申裕斌
+KOR|JEON Jihee=全智熙
+HKG|LEE Cheuk Yiu=李卓耀
+HKG|NG Ka Long Angus=伍家朗
+HKG|TANG Chun Man=鄧俊文
+HKG|TSE Ying Suet=謝影雪
+HKG|WONG Chun Ting=黃鎮廷
+HKG|DOO Hoi Kem=杜凱琹
+HKG|LAM Siu Hang=林兆恒
+HKG|HO Kwan Kit=何鈞傑
+HKG|LEE Ho Ching=李皓晴
+HKG|ZHU Chengzhu=朱成竹
+SGP|LOH Kean Yew=羅健裕
+SGP|YEO Jia Min=楊佳敏
+SGP|FENG Tianwei=馮天薇
+SGP|YU Mengyu=于夢雨
+MAS|LEE Zii Jia=李梓嘉
+MAS|Aaron CHIA=謝定峰
+MAS|SOH Wooi Yik=蘇偉譯
+MAS|GOH Jin Wei=吳堇葳
+MAS|GOH Soon Huat=吳順發
+MAS|LEONG Jun Hao=梁峻豪
+MAS|CHEN Tang Jie=陳唐傑
+MAS|TOH Ee Wei=杜玉薇
+MAS|TAN Wee Kiong=陳偉強
+`;
+/* 比對鍵：國家碼 + 英文字母排序後的字串，因此「姓名順序」「空格」「連字號」不影響比對（SHI Yu Qi = SHI Yuqi = Yu-Qi Shi） */
+const nameKey = (n,org) => String(org||"")+"|"+String(n||"").toUpperCase().replace(/[^A-Z]/g,"").split("").sort().join("");
+const ZH = {};
+ZH_RAW.trim().split("\n").forEach(l=>{ const i=l.indexOf("|"), j=l.lastIndexOf("="); if(i>0&&j>i) ZH[nameKey(l.slice(i+1,j),l.slice(0,i))]=l.slice(j+1).trim(); });
+
+/* ============ 狀態 ============ */
+const S = {
+  sport:"bwf", year:null, tmts:[], tid:null, event:"MS", pid:null,
+  tcache:{}, mcache:{}, loading:false, error:null, timer:null, lastSync:null, ttEvents:null
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ymd = d => d.toISOString().slice(0,10);
+const addDays = (s,n) => ymd(new Date(new Date(s+"T00:00:00Z").getTime()+n*864e5));
+const norm = n => String(n||"").toUpperCase().replace(/-/g," ").replace(/\s+/g," ").trim();
+const zhName = (n,org) => ZH[nameKey(n,org)] || null;
+const cfg = () => SPORT_CFG[S.sport];
+const curT = () => S.tmts.find(t=>String(t.id)===String(S.tid));
+const mkey = t => S.sport+":"+t.id;
+const isActive = t => { if(!t) return false; const td=ymd(new Date()); return td>=addDays(t.start,-1) && td<=addDays(t.end,1); };
+
+async function getJSON(url){
+  const ctl = new AbortController(); const to = setTimeout(()=>ctl.abort(),25000);
+  try{
+    const r = await fetch(url,{signal:ctl.signal});
+    if(!r.ok){ const e = new Error("HTTP "+r.status); e.status = r.status; throw e; }
+    return await r.json();
+  } finally { clearTimeout(to); }
+}
+
+/* ============ 羽球資料（BWF Match Centre） ============ */
+const BWF_API = "https://extranet-lv.bwfbadminton.com/api";
+const isBwfTour = t => /World Tour/i.test(t.category||"") && /(Super\s*(300|500|750|1000)|Finals)/i.test(t.category||"");
+const bwfLevel = c => { const m=/Super\s*(\d+)/i.exec(c||""); return m ? "S"+m[1] : (/Finals/i.test(c||"")?"總決賽":""); };
+const tmtZh = n => { for(const [re,zh] of TMT_ZH) if(re.test(n)) return zh; return ""; };
+
+async function listBwf(year){
+  let page=1,last=1,all=[];
+  do{
+    const q = new URLSearchParams({startDate:`${year}-01-01`,endDate:`${year}-12-31`,page,perPage:100,drawCount:1,activeTab:"1"});
+    const j = await getJSON(`${BWF_API}/vue-tournaments-search?${q}`);
+    all.push(...j.results.data); last = j.results.last_page || 1; page++;
+  }while(page<=last);
+  return all.filter(isBwfTour).sort((a,b)=>a.start_date.localeCompare(b.start_date)).map(t=>({
+    id:String(t.id), code:t.code, name:t.name, zh:tmtZh(t.name), level:bwfLevel(t.category),
+    start:t.start_date.slice(0,10), end:t.end_date.slice(0,10), loc:t.location||"", dates:t.date||"",
+    prize:t.prize_money?`獎金 US$${t.prize_money}`:"", liveStatus:t.live_status
+  }));
+}
+const daysBetween = (a,b) => { const out=[]; let d=a; while(d<=b){out.push(d); d=addDays(d,1);} return out; };
+
+function nzBwf(m){
+  const tp = tm => (tm && tm.players) || [];
+  const side = (tm,seed) => ({
+    players: tp(tm).map(p=>({id:String(p.id),name:String(p.nameDisplay||"").replace(/\s+/g," ").trim(),org:p.countryCode||""})),
+    org:(tm&&tm.countryCode)||"", flag:(tm&&tm.countryFlagUrl)||"", seed:seed||""
+  });
+  const done = m.matchStatus==="F" || m.winner>0;
+  const live = !done && !!m.matchStatus && !["N","O","none"].includes(m.matchStatus);
+  const ro = ROUNDS[m.roundName] || [50,m.roundName||""];
+  return {
+    day:m._day, time:(m.matchTime||"").slice(0,16), ev:m.eventName, rorder:ro[0], rname:ro[1], court:m.courtName||"",
+    st: done?"done":live?"live":"todo", win:m.winner||0, wo:m.scoreStatus||0, irm:"", dur:m.duration||null,
+    a:side(m.team1,m.team1seed), b:side(m.team2,m.team2seed),
+    sets:(m.score||[]).map(s=>[s.home,s.away]), main:null,
+    key:(m.matchTime||m._day||"")+String(m.code||"").padStart(5,"0")
+  };
+}
+async function loadBwf(t, poll){
+  const store = S.mcache[mkey(t)] || (S.mcache[mkey(t)]={days:{}});
+  const td = ymd(new Date());
+  const need = daysBetween(t.start,t.end).filter(d=>{
+    if(!store.days[d]) return true;
+    return poll && d>=addDays(td,-1) && d<=addDays(td,1);
+  });
+  const res = await Promise.all(need.map(async d=>{
+    const q = new URLSearchParams({tournamentCode:t.code,date:d,order:1,court:0});
+    const j = await getJSON(`${BWF_API}/tournaments/day-matches?${q}`);
+    return [d, Array.isArray(j)?j:[]];
+  }));
+  res.forEach(([d,arr])=>{ arr.forEach(m=>m._day=d); store.days[d]=arr.map(nzBwf); });
+}
+
+/* ============ 桌球資料（WTT 官方賽果封存檔） ============ */
+const TT_API = "https://wtt-website-api-vm-frontdoor-hhaec5epbhdyfugz.a01.azurefd.net/primary/api/";
+const TT_FD  = "https://wtt-web-frontdoor-cthahjeqhbh6aqe3.a01.azurefd.net/";
+const TT_CATS = {64:"大滿貫",65:"冠軍賽",75:"總決賽",91:"盃賽總決賽",35:"星級挑戰賽",34:"挑戰賽",95:"世界盃"};
+const TT_EV = {"Men Singles":"MS","Women Singles":"WS","Men Doubles":"MD","Women Doubles":"WD","Mixed Doubles":"XD"};
+
+async function listTt(year){
+  if(!S.ttEvents) S.ttEvents = await getJSON(TT_API+"cms/GetAllLiveOrActiveEvents");
+  return S.ttEvents
+    .filter(e=>TT_CATS[e.tournamentCategoryId] && String(e.startDateTime||"").slice(0,4)===String(year))
+    .sort((a,b)=>String(a.startDateTime).localeCompare(String(b.startDateTime)))
+    .map(e=>{
+      const city = String(e.city||"").trim(), lvl = TT_CATS[e.tournamentCategoryId];
+      const s = String(e.startDateTime).slice(0,10), en = String(e.endDateTime||e.startDateTime).slice(0,10);
+      return { id:String(e.eventId), name:String(e.eventName||"").replace(/\s+/g," ").trim(),
+        zh: lvl + (city ? " " + (TT_CITY_ZH[city]||city) : ""), level:lvl,
+        start:s, end:en, loc:[city,e.countryName].filter(Boolean).join(", "), dates:`${s.slice(5).replace("-","/")} – ${en.slice(5).replace("-","/")}`, prize:"" };
+    });
+}
+function ttRound(label){
+  const L = String(label||"").trim();
+  const fixed = {"Final":[0,"決賽"],"Semifinal":[1,"四強"],"Quarterfinal":[2,"八強"],"Round of 16":[3,"16 強"],"Round of 32":[4,"32 強"],"Round of 64":[5,"64 強"],"Round of 128":[6,"128 強"]};
+  if(fixed[L]) return fixed[L];
+  const q = /^Qualifying Round (\d+)$/i.exec(L);
+  if(q){ const n=parseInt(q[1],10); return [20-n,`資格賽第 ${n} 輪`]; }
+  return [50,L||"其他"];
+}
+function nzTt(x){
+  const ev = TT_EV[x.subEventType], c = x.match_card;
+  if(!ev || !c || !c.competitiors || c.competitiors.length<2) return null;
+  const H = c.competitiors.find(k=>k.competitorType==="H") || c.competitiors[0];
+  const A = c.competitiors.find(k=>k.competitorType==="A") || c.competitiors[1];
+  const side = k => ({
+    players:(k.players&&k.players.length ? k.players : [{playerId:k.competitiorId,playerName:k.competitiorName,playerOrgCode:k.competitiorOrg}])
+      .map(p=>({id:String(p.playerId),name:String(p.playerName||"").replace(/\s+/g," ").trim(),org:p.playerOrgCode||k.competitiorOrg||""})),
+    org:k.competitiorOrg||"", flag:"", seed:""
+  });
+  const og = String(c.overallScores||"0-0").split("-").map(n=>parseInt(n,10)||0);
+  const win = og[0]>og[1] ? 1 : og[1]>og[0] ? 2 : 0;
+  const sets = String(c.gameScores||"").split(",").map(s=>s.split("-").map(n=>parseInt(n,10)))
+    .filter(p=>p.length===2 && !isNaN(p[0]) && !isNaN(p[1]) && !(p[0]===0&&p[1]===0));
+  const parts = String(c.subEventDescription||"").split(" - ");
+  const rr = ttRound(parts.slice(1,-1).join(" - "));
+  const start = x.startDateLocal || "";
+  let dur = null; const d = c.matchDateTime && c.matchDateTime.duration;
+  if(d){ const m=/^(\d+):(\d+):(\d+)/.exec(d); if(m) dur = parseInt(m[1],10)*60+parseInt(m[2],10)+(parseInt(m[3],10)>=30?1:0); }
+  return {
+    day:start.slice(0,10), time:start.slice(0,16).replace("T"," "), ev, rorder:rr[0], rname:rr[1], court:c.tableName||"",
+    st: win?"done":"todo", win, wo:0, irm:H.irm||A.irm||"", dur,
+    a:side(H), b:side(A), sets, main:og, key:start+String(x.documentCode||"")
+  };
+}
+async function loadTt(t){
+  const k = mkey(t), prev = S.mcache[k];
+  if(prev && !prev.missing) return;
+  try{
+    const j = await getJSON(`${TT_FD}websitearchivedresults/${t.id}/officialresult/officialresult.json`);
+    S.mcache[k] = {list:(Array.isArray(j)?j:[]).map(nzTt).filter(Boolean), missing:false};
+  }catch(e){
+    if(e.status===404 || e.status===403 || e.status===400){ S.mcache[k] = {list:[], missing:true}; }
+    else throw e;
+  }
+}
+
+/* ============ 統一介面 ============ */
+async function listTournaments(year){
+  const key = S.sport+":"+year;
+  if(S.tcache[key]) return S.tcache[key];
+  const list = S.sport==="bwf" ? await listBwf(year) : await listTt(year);
+  S.tcache[key] = list; return list;
+}
+async function loadMatches(t, poll){ return S.sport==="bwf" ? loadBwf(t,poll) : loadTt(t); }
+function allMatches(t){
+  const st = S.mcache[mkey(t)]; if(!st) return [];
+  if(S.sport==="bwf") return Object.keys(st.days).sort().flatMap(d=>st.days[d]);
+  return st.list;
+}
+const missingResults = t => S.sport==="tt" && !!t && !!S.mcache[mkey(t)] && S.mcache[mkey(t)].missing;
+
+/* ============ 比賽判讀 ============ */
+const isDone = m => m.st==="done";
+const isLive = m => m.st==="live";
+const sideOf = (m,pid) => m.a.players.some(p=>p.id===String(pid)) ? 1 : m.b.players.some(p=>p.id===String(pid)) ? 2 : 0;
+function playersIndex(matches){
+  const idx = new Map();
+  matches.forEach(m=>[m.a,m.b].forEach(s=>s.players.forEach(p=>{ if(!idx.has(p.id)) idx.set(p.id,p); })));
+  return idx;
+}
+
+/* ============ 畫面元件 ============ */
+function nameBtn(p){
+  const zh = zhName(p.name,p.org), tpe = p.org==="TPE";
+  const label = zh ? `${esc(zh)} <small>${esc(p.name)}</small>` : esc(p.name);
+  return `<button class="pl${tpe?" tpe":""}" data-pid="${esc(p.id)}" title="${esc(p.name)}">${label}</button>`;
+}
+function teamHtml(s){
+  const mark = s.flag ? `<img class="flag" src="${esc(s.flag)}" alt="${esc(s.org)}" loading="lazy">` : (s.org ? `<span class="org">${esc(s.org)}</span>` : "");
+  const names = s.players.length ? s.players.map(nameBtn).join(" / ") : '<span class="seed">待定</span>';
+  return `<div class="who">${mark}<div class="names">${names}</div>${s.seed?`<span class="seed">[${esc(s.seed)}]</span>`:""}</div>`;
+}
+function setsHtml(m, n){
+  if(m.main) return `<div class="sets"><span class="s g${m.win===n?" sw":""}">${m.main[n-1]}</span></div>`;
+  const live = isLive(m);
+  return `<div class="sets">${m.sets.map((s,i)=>{
+    const mine = n===1 ? s[0] : s[1], other = n===1 ? s[1] : s[0];
+    const cur = live && i===m.sets.length-1;
+    return `<span class="${cur ? "s cur" : (mine>other ? "s sw" : "s")}">${mine ?? "-"}</span>`;
+  }).join("")}</div>`;
+}
+function statusBits(m){
+  if(isLive(m)) return '<span class="badge live">LIVE</span>';
+  if(isDone(m)){
+    if(m.irm) return `<span class="badge">${esc(m.irm)}</span>`;
+    if(m.wo===1) return '<span class="badge">未出賽 W.O.</span>';
+    if(m.wo===2) return '<span class="badge">中途退賽</span>';
+    return m.dur ? `<span class="badge">${esc(m.dur)} 分鐘</span>` : "";
+  }
+  return '<span class="badge">尚未開打</span>';
+}
+function matchHtml(m, pid, showEv){
+  const tm = (m.time||"").slice(5,16).replace("-","/");
+  let res = "";
+  if(pid && isDone(m) && m.win){ const me = sideOf(m,pid); res = me ? `<span class="res ${me===m.win?"w":"l"}">${me===m.win?"勝":"負"}</span>` : ""; }
+  const meta = [m.rname, (pid||showEv) ? (EV_ZH[m.ev]||m.ev) : "", tm, m.court].filter(Boolean).map(esc).join(" · ");
+  const row = n => {
+    const sd = n===1 ? m.a : m.b;
+    const cls = isDone(m) && m.win ? (m.win===n ? "win" : "lose") : "";
+    return `<div class="row ${cls}">${teamHtml(sd)}${setsHtml(m,n)}</div>`;
+  };
+  const detail = m.main && m.sets.length ? `<div class="detail">${m.sets.map(s=>`<span>${s[0]}-${s[1]}</span>`).join("")}</div>` : "";
+  return `<article class="m${isLive(m)?" live":""}"><div class="mm"><span>${meta}</span>${statusBits(m)}${res}</div>${row(1)}${row(2)}${detail}</article>`;
+}
+
+/* ============ 主要渲染 ============ */
+function renderHead(){
+  $("subtitle").textContent = cfg().sub;
+  $("foot").textContent = cfg().foot;
+  document.querySelectorAll(".sport").forEach(b=>b.setAttribute("aria-selected", String(b.dataset.sport===S.sport)));
+}
+function renderControls(){
+  const ys = []; for(let y=THIS_YEAR;y>=cfg().minYear;y--) ys.push(y);
+  $("year").innerHTML = ys.map(y=>`<option value="${y}"${y===S.year?" selected":""}>${y}</option>`).join("");
+  $("tmt").innerHTML = S.tmts.length ? S.tmts.map(t=>{
+    const d = `${t.start.slice(5).replace("-","/")}–${t.end.slice(5).replace("-","/")}`;
+    const live = S.sport==="bwf" && isActive(t) && t.liveStatus!=="post" ? " ●" : "";
+    const lvl = S.sport==="bwf" ? `（${t.level}）` : "";
+    return `<option value="${esc(t.id)}"${String(t.id)===String(S.tid)?" selected":""}>${esc(d)}　${esc(t.zh?t.zh+" · ":"")}${esc(t.name)}${esc(lvl)}${live}</option>`;
+  }).join("") : `<option value="">本年度尚無資料</option>`;
+}
+function renderInfo(t){
+  $("tinfo").innerHTML = t ? [
+    `<span>${esc(t.level)}${t.loc?" · "+esc(t.loc):""}</span>`,
+    t.dates ? `<span>${esc(t.dates)}</span>` : "",
+    t.prize ? `<span>${esc(t.prize)}</span>` : ""
+  ].join("") : "";
+}
+function renderEvents(matches){
+  $("events").innerHTML = EVENTS.map(([k,zh])=>{
+    const n = matches.filter(m=>m.ev===k).length;
+    return `<button class="tab" role="tab" data-ev="${k}" aria-selected="${!S.pid && S.event===k}">${zh}<span class="n">${n||""}</span></button>`;
+  }).join("");
+}
+function renderTpe(matches){
+  const idx = playersIndex(matches);
+  const tpe = [...idx.values()].filter(p=>p.org==="TPE")
+    .sort((a,b)=>(zhName(b.name,b.org)?1:0)-(zhName(a.name,a.org)?1:0) || a.name.localeCompare(b.name));
+  const opts = [...idx.values()].map(p=>`<option value="${esc(p.name)}">${esc(zhName(p.name,p.org)||"")}</option>`).join("");
+  $("tpe").innerHTML = `<div class="tpe-row">
+    <div class="head"><h2>台灣選手（點選查看戰績）</h2>
+      <div class="search"><input id="q" list="plist" placeholder="搜尋選手（中文或英文）" aria-label="搜尋選手"><datalist id="plist">${opts}</datalist></div></div>
+    <div class="chips">${tpe.length ? tpe.map(p=>`<button class="chip" data-pid="${esc(p.id)}">${esc(zhName(p.name,p.org)||p.name)}</button>`).join("") : '<span class="seed">這項賽事沒有台灣選手出賽，或尚未公布籤表。</span>'}</div></div>`;
+}
+function renderMain(t, matches){
+  const main = $("main");
+  if(S.error){ main.innerHTML = `<div class="state">${esc(S.error)}<br><button id="retry">重新載入</button></div>`; return; }
+  if(!t){ main.innerHTML = `<div class="state">這一年沒有符合的賽事。</div>`; return; }
+  if(!matches.length){
+    let msg = S.loading ? "載入戰績中…" : "賽事尚未開打，或尚未公布賽程。";
+    if(!S.loading && missingResults(t)){
+      const td = ymd(new Date());
+      msg = td<t.start ? "賽事尚未開始。" : "這項賽事的賽果尚未公布。賽事結束後才會有完整賽果；進行中的即時比分，WTT 只在自己的網站提供，請到 <a href=\"https://www.worldtabletennis.com/\" target=\"_blank\" rel=\"noopener\">WTT 官網</a>查看。";
+    }
+    main.innerHTML = `<div class="state">${msg}</div>`; return;
+  }
+  const live = matches.filter(isLive).sort((a,b)=>a.key.localeCompare(b.key));
+
+  if(S.pid){
+    const idx = playersIndex(matches), p = idx.get(String(S.pid));
+    const mine = matches.filter(m=>sideOf(m,S.pid)).sort((a,b)=>a.key.localeCompare(b.key));
+    let w=0,l=0; mine.forEach(m=>{ if(isDone(m)&&m.win){ (sideOf(m,S.pid)===m.win)?w++:l++; } });
+    const zh = p ? zhName(p.name,p.org) : null, en = p ? p.name : "";
+    const evs = [...new Set(mine.map(m=>EV_ZH[m.ev]||m.ev))].join("、");
+    main.innerHTML = `<button class="back" id="back">← 回到${esc(EV_ZH[S.event])}戰績</button>
+      <div class="player-head"><h2>${esc(zh||en)}</h2><div class="en">${zh?esc(en)+" · ":""}${esc(p?p.org:"")} · ${esc(evs)}</div>
+      <div class="rec">本賽事 ${w} 勝 ${l} 敗${mine.some(isLive)?` · <span class="badge live">進行中</span>`:""}</div></div>
+      <section class="sec"><h2>全部戰績<span class="rule"></span><span class="cnt">${mine.length}</span></h2>
+      ${mine.length?`<div class="grid">${mine.map(m=>matchHtml(m,S.pid)).join("")}</div>`:""}${mine.length?"":'<div class="state">沒有這位選手的比賽紀錄。</div>'}</section>`;
+    return;
+  }
+
+  let html = "";
+  if(live.length){
+    html += `<section class="sec"><h2>進行中<span class="rule"></span><span class="cnt">${live.length}</span></h2><div class="grid">${live.map(m=>matchHtml(m,null,true)).join("")}</div></section>`;
+  }
+  const evm = matches.filter(m=>m.ev===S.event);
+  const groups = new Map();
+  evm.forEach(m=>{ const k=m.rorder+"|"+m.rname; if(!groups.has(k)) groups.set(k,[]); groups.get(k).push(m); });
+  const order = [...groups.keys()].sort((a,b)=>parseInt(a,10)-parseInt(b,10));
+  html += order.length ? order.map(k=>{
+    const arr = groups.get(k).sort((a,b)=>a.key.localeCompare(b.key));
+    return `<section class="sec"><h2>${esc(arr[0].rname)}<span class="rule"></span><span class="cnt">${arr.length}</span></h2><div class="grid">${arr.map(m=>matchHtml(m,null)).join("")}</div></section>`;
+  }).join("") : `<div class="state">${esc(EV_ZH[S.event])}尚無賽程。</div>`;
+  main.innerHTML = html;
+}
+
+function render(){
+  const t = curT(), matches = t ? allMatches(t) : [];
+  renderHead(); renderControls(); renderInfo(t); renderEvents(matches); renderTpe(matches); renderMain(t,matches);
+  const liveN = matches.filter(isLive).length;
+  const sync = $("sync");
+  const polling = !!t && isActive(t) && (S.sport==="bwf" ? t.liveStatus!=="post" : missingResults(t));
+  sync.classList.toggle("on", polling && S.sport==="bwf");
+  let txt = "";
+  if(S.loading) txt = "載入中";
+  else if(S.sport==="tt" && polling) txt = "賽事進行中，等待賽果公布";
+  else if(S.lastSync) txt = `${liveN?`進行中 ${liveN} 場 · `:""}更新 ${S.lastSync.toLocaleTimeString("zh-TW",{hour12:false})}`;
+  $("syncText").textContent = txt;
+  writeHash();
+}
+
+/* ============ 狀態、網址、輪詢 ============ */
+function writeHash(){
+  const p = new URLSearchParams({s:S.sport,y:S.year,t:S.tid||"",e:S.event}); if(S.pid) p.set("p",S.pid);
+  try{ history.replaceState(null,"","#"+p.toString()); }catch(e){}
+}
+function readHash(){
+  const p = new URLSearchParams(location.hash.slice(1));
+  return {s:p.get("s"), y:parseInt(p.get("y"),10)||null, t:p.get("t"), e:p.get("e"), p:p.get("p")};
+}
+function pickDefault(list){
+  const td = ymd(new Date());
+  const act = list.find(t=>S.sport==="bwf" ? isActive(t) : false); if(act) return act.id;
+  const started = list.filter(t=>t.start<=td);
+  return (started.length ? started[started.length-1] : list[0])?.id ?? null;
+}
+async function refresh(poll){
+  const t = curT(); if(!t) return;
+  try{ await loadMatches(t,poll); S.error=null; S.lastSync=new Date(); }
+  catch(e){ if(!poll) S.error = "讀取戰績失敗，請檢查網路後重試。"; }
+}
+function schedule(){
+  clearInterval(S.timer); S.timer=null;
+  const t = curT(); if(!t) return;
+  const want = S.sport==="bwf" ? isActive(t) : (isActive(t) && missingResults(t));
+  const sport = S.sport, tid = S.tid;
+  if(want) S.timer = setInterval(async()=>{
+    if(document.hidden || S.sport!==sport || S.tid!==tid) return;
+    await refresh(true); render();
+    if(S.sport==="tt" && !missingResults(curT())) schedule();
+  }, cfg().pollMs);
+}
+async function selectYear(year, preferTid){
+  S.year=year; S.loading=true; S.error=null; render();
+  try{ S.tmts = await listTournaments(year); }catch(e){ S.tmts=[]; S.error="讀取賽事清單失敗，請檢查網路後重試。"; }
+  const ids = S.tmts.map(t=>String(t.id));
+  S.tid = preferTid && ids.includes(String(preferTid)) ? String(preferTid) : pickDefault(S.tmts);
+  await selectTournament(S.tid, true);
+}
+async function selectTournament(tid, keepPlayer){
+  S.tid = tid; if(!keepPlayer) S.pid=null;
+  S.loading=true; render();
+  await refresh(false);
+  S.loading=false; render(); schedule();
+}
+async function selectSport(sport, init){
+  if(sport===S.sport && !init) return;
+  clearInterval(S.timer); S.timer=null;
+  S.sport = sport; S.pid = null; S.tmts = []; S.tid = null; S.lastSync = null;
+  await selectYear(THIS_YEAR, null);
+}
+
+document.addEventListener("click",e=>{
+  const sp = e.target.closest("[data-sport]"); if(sp){ selectSport(sp.dataset.sport); return; }
+  const ev = e.target.closest("[data-ev]"); if(ev){ S.event=ev.dataset.ev; S.pid=null; render(); return; }
+  const pl = e.target.closest("[data-pid]"); if(pl){ S.pid=pl.dataset.pid; render(); window.scrollTo({top:0,behavior:"smooth"}); return; }
+  if(e.target.id==="back"){ S.pid=null; render(); return; }
+  if(e.target.id==="retry"){ S.error=null; selectYear(S.year||THIS_YEAR,S.tid); }
+});
+$("year").addEventListener("change",e=>{ S.pid=null; selectYear(parseInt(e.target.value,10)); });
+$("tmt").addEventListener("change",e=>{ selectTournament(e.target.value,false); });
+document.addEventListener("change",e=>{
+  if(e.target.id!=="q") return;
+  const raw = e.target.value.trim(), v = raw.toLowerCase(); if(!v) return;
+  const t = curT(); if(!t) return;
+  const list = [...playersIndex(allMatches(t)).values()];
+  const hit = list.find(p=>p.name.toLowerCase()===v) || list.find(p=>p.name.toLowerCase().includes(v) || (zhName(p.name,p.org)||"").includes(raw));
+  if(hit){ S.pid=String(hit.id); render(); }
+});
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden && S.timer){ refresh(true).then(render); } });
+
+(function init(){
+  const h = readHash();
+  if(h.e && EV_ZH[h.e]) S.event = h.e;
+  if(h.p) S.pid = h.p;
+  S.sport = SPORT_CFG[h.s] ? h.s : "bwf";
+  const y = h.y && h.y>=cfg().minYear && h.y<=THIS_YEAR ? h.y : THIS_YEAR;
+  selectYear(y, h.t);
+})();
+</script>
+</body>
+</html>
